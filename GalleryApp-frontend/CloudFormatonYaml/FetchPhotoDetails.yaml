@@ -1,0 +1,250 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  # Define the Lambda Layer
+  NewMyLambda6:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: awsversion1
+      Description: "A layer containing Node.js modules"
+      Content:
+        S3Bucket: photogallery5409
+        S3Key: awsversion1.zip
+      CompatibleRuntimes:
+        - nodejs20.x
+
+  # Define the Lambda Function
+  fetchPhotoLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: fetchPhotoLambda
+      Handler: index.handler
+      Role: arn:aws:iam::980977648800:role/LabRole
+      Code:
+        S3Bucket: photogallery5409
+        S3Key: fetchPhotoDetails.zip	
+      Runtime: nodejs20.x
+      Timeout: 15
+      Layers:
+        - !Ref NewMyLambda6
+  # API Gateway Method - /getImageDetails - POST
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: photogallery
+      Description: API Gateway for cloudCostBoard application
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+  # Define the Lambda Layer
+  NewMyLambda5:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: awsnodemodules
+      Description: "A layer containing Node.js modules"
+      Content:
+        S3Bucket: photogallery5409
+        S3Key: awsnodemodules.zip
+      CompatibleRuntimes:
+        - nodejs20.x
+
+  # Define the Lambda Function
+  deletePhotoLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: deletePhotoLambda
+      Handler: index.handler
+      Role: arn:aws:iam::980977648800:role/LabRole
+      Code:
+        S3Bucket: photogallery5409
+        S3Key: deletePhotoLambda.zip	
+      Runtime: nodejs20.x
+      Timeout: 15
+      Layers:
+        - !Ref NewMyLambda5
+          
+  ApiGatewayMethodGetImageDetails:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: getImageDetails
+      RestApiId: !Ref ApiGatewayRestApi
+
+  ApiGatewayMethodDeleteImageDetails:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: deleteImageDetails
+      RestApiId: !Ref ApiGatewayRestApi             
+
+  ApiGatewayMethodGetImageDetailsGet:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref ApiGatewayMethodGetImageDetails
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Credentials: arn:aws:iam::980977648800:role/LabRole
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+            - { LambdaArn: !GetAtt fetchPhotoLambda.Arn }
+        # RequestTemplates:
+        #   application/json: |
+        #     {
+        #       "queryStringParameters": {
+        #           "key": "$input.params('key')"
+        #         }
+        #     }
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ""
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,access-control-allow-credentials'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Credentials: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  ApiGatewayMethodgetImageDetailsDelete:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref ApiGatewayMethodDeleteImageDetails
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Credentials: arn:aws:iam::980977648800:role/LabRole
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+            - { LambdaArn: !GetAtt deletePhotoLambda.Arn }
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ""
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,access-control-allow-credentials'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Credentials: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+
+  # API Gateway Method - /deleteImageDetails - OPTIONS
+  ApiGatewayMethodGetImageDetailsOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayMethodGetImageDetails
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Type: MOCK # Use MOCK integration for CORS preflight requests
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+# API Gateway Method - /getImageDetails - OPTIONS
+  ApiGatewayMethodgetImageDetailsDeleteOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayMethodDeleteImageDetails
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Type: MOCK # Use MOCK integration for CORS preflight requests
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Deployment
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: Prod
+    DependsOn:
+      - ApiGatewayMethodGetImageDetailsGet
+      - ApiGatewayMethodGetImageDetailsOptions
+      - ApiGatewayMethodgetImageDetailsDelete
+      - ApiGatewayMethodgetImageDetailsDeleteOptions
+
+  # Lambda Permissions for API Gateway
+  LambdaPermissionForApiGatewaygetImageDetails:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt fetchPhotoLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/POST/getImageDetails
+
+  LambdaPermissionForApiGatewaygetImageDetailsDelete:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt deletePhotoLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/POST/deleteImageDetails
+
+Outputs:
+  LambdaFunctionArn:
+    Description: "ARN of the newly created Lambda function"
+    Value: !GetAtt fetchPhotoLambda.Arn
+  LambdaLayerArn:
+    Description: "ARN of the newly created Lambda layer"
+    Value: !Ref NewMyLambda6
+  DeleteLambdaFunctionArn:
+    Description: "ARN of the newly created Lambda function"
+    Value: !GetAtt deletePhotoLambda.Arn
+  DeleteLambdaLayerArn:
+    Description: "ARN of the newly created Lambda layer"
+    Value: !Ref NewMyLambda5

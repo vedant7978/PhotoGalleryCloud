@@ -1,0 +1,36 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template to create an EC2 instance with specified inbound rules and IAM role in the default VPC
+
+Resources:
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      KeyName: PhotoGallery
+      ImageId: ami-0ba9883b710b05ac6 # Replace with the Amazon Linux 2023 AMI ID for your region
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      IamInstanceProfile: !Ref MyInstanceProfile
+      Tags:
+        - Key: Name
+          Value: trial
+
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group with custom inbound rules
+      VpcId: vpc-0a54a8fe2b5e2be9a  # Specify the VPC ID
+      SecurityGroupIngress:
+        - IpProtocol: -1  # -1 indicates all protocols
+          FromPort: -1    # -1 indicates all port ranges
+          ToPort: -1      # -1 indicates all port ranges
+          CidrIp: 0.0.0.0/0  # Allow all traffic from any IP address                         
+      Tags:
+        - Key: Name
+          Value: MySecurityGroup
+
+  MyInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - EMR_EC2_DefaultRole

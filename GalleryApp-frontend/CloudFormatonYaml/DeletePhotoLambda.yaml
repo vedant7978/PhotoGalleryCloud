@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  # Define the Lambda Layer
+  MyLambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: awsnodemodules
+      Description: "A layer containing Node.js modules"
+      Content:
+        S3Bucket: photogallery5409
+        S3Key: awsnodemodules.zip
+      CompatibleRuntimes:
+        - nodejs20.x
+
+  # Define the Lambda Function
+  deletePhotoLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: deletePhotoLambda
+      Handler: index.handler
+      Role: arn:aws:iam::980977648800:role/LabRole
+      Code:
+        S3Bucket: photogallery5409
+        S3Key: deletephotolambda.zip	
+      Runtime: nodejs20.x
+      Timeout: 15
+      Layers:
+        - !Ref MyLambdaLayer
+      
+
+Outputs:
+  LambdaFunctionArn:
+    Description: "ARN of the newly created Lambda function"
+    Value: !GetAtt deletePhotoLambda.Arn
+  LambdaLayerArn:
+    Description: "ARN of the newly created Lambda layer"
+    Value: !Ref MyLambdaLayer

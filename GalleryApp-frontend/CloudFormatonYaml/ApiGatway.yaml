@@ -1,0 +1,94 @@
+Resources:
+  # API Gateway Method - /storeSecret - POST
+  ApiGatewayMethodNotifyPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref ApiGatewayMethodNotify
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Credentials: arn:aws:iam::980977648800:role/LabRole
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+            - { LambdaArn: !GetAtt storeSecretLambda.Arn }
+        RequestTemplates:
+          application/json: ""
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ""
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,access-control-allow-credentials'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Credentials: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Method - /storeSecret - OPTIONS
+  ApiGatewayMethodNotifyOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayMethodNotify
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Type: MOCK # Use MOCK integration for CORS preflight requests
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            # ResponseTemplates:
+            #   application/json: ""  # Provide an empty template
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty" # Reference the empty model
+  # API Gateway Deployment
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: cloudCostBoard
+    DependsOn:
+      - ApiGatewayMethodNotifyPost
+      - ApiGatewayMethodNotifyOptions
+      # - ApiGatewayMethodGetCostDataPost
+      # - ApiGatewayMethodCreateTopicPost
+      # - ApiGatewayMethodGenerateReportPost
+      # - ApiGatewayMethodSendEmailPost
+      # - ApiGatewayMethodStoreSecretOptions
+      # - ApiGatewayMethodDeleteSecretOptions
+      # - ApiGatewayMethodGetCostDataOptions
+      # - ApiGatewayMethodCreateTopicOptions
+      # - ApiGatewayMethodGenerateReportOptions
+      # - ApiGatewayMethodSendEmailOptions
+
+  # Lambda Permissions for API Gateway
+  LambdaPermissionForApiGatewayStoreSecret:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt storeSecretLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/POST/storeSecret

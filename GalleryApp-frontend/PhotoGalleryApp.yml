@@ -1,0 +1,783 @@
+Resources:
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: cloudcostboardreports
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  MyPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: arn:aws:iam::101138527444:role/LabRole
+            Action:
+              - "s3:GetObject"
+              - "s3:PutObject"
+            Resource:
+              Fn::Sub: "arn:aws:s3:::${S3Bucket}/*"
+
+  storeSecretLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: storeSecretLambda
+      Handler: index.handler
+      Role: arn:aws:iam::101138527444:role/LabRole
+      Code:
+        S3Bucket: cloudcostboardlambda
+        S3Key: storeSecret.zip
+      Runtime: nodejs20.x
+      Timeout: 15
+
+  deleteSecretLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: deleteSecretLambda
+      Handler: index.handler
+      Role: arn:aws:iam::101138527444:role/LabRole
+      Code:
+        S3Bucket: cloudcostboardlambda
+        S3Key: deleteSecret.zip
+      Runtime: nodejs20.x
+      Timeout: 15
+
+  getCostDataLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: getCostDataLambda
+      Handler: index.handler
+      Role: arn:aws:iam::101138527444:role/LabRole
+      Code:
+        S3Bucket: cloudcostboardlambda
+        S3Key: getCostData.zip
+      Runtime: nodejs20.x
+      Timeout: 15
+
+  createTopicLambda:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - ApiGatewayRestApi
+      # - sendEmailLambda
+    #   - ApiGatewayDeployment
+    Properties:
+      FunctionName: createTopicLambda
+      Handler: index.handler
+      Role: arn:aws:iam::101138527444:role/LabRole
+      Code:
+        S3Bucket: cloudcostboardlambda
+        S3Key: createTopic.zip
+      Runtime: nodejs20.x
+      Timeout: 15
+      Environment:
+        Variables:
+          SEND_EMAIL_URL: !Sub "https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/sendEmail"
+
+  generateReportLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: generateReportLambda
+      Handler: index.handler
+      Role: arn:aws:iam::101138527444:role/LabRole
+      Code:
+        S3Bucket: cloudcostboardlambda
+        S3Key: generateReport.zip
+      Runtime: nodejs20.x
+      Timeout: 15
+      Environment:
+        Variables:
+          BUCKET_NAME:
+            Ref: S3Bucket
+
+  sendEmailLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: sendEmailLambda
+      Handler: index.handler
+      Role: arn:aws:iam::101138527444:role/LabRole
+      Code:
+        S3Bucket: cloudcostboardlambda
+        S3Key: sendEmail.zip
+      Runtime: nodejs20.x
+      Timeout: 15
+      Environment:
+        Variables:
+          BUCKET_NAME:
+            Ref: S3Bucket
+
+  # SNSTopic:
+  #   Type: AWS::SNS::Topic
+  #   Properties:
+  #     DisplayName: OneStore
+  #     FifoTopic: false
+  #     TopicName: test-user-registration-topic
+
+  # SNSSubscription:
+  #   Type: AWS::SNS::Subscription
+  #   Properties:
+  #     Protocol: email
+  #     Endpoint: luvpatel3376@gmail.com
+  #     TopicArn: !Ref SNSTopic
+
+  # SNSTopicPolicy:
+  #   Type: AWS::SNS::TopicPolicy
+  #   Properties:
+  #     Topics:
+  #       - !Ref SNSTopic
+  #     PolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             AWS: arn:aws:iam::101138527444:role/LabRole
+  #           Action: sns:Subscribe
+  #           Resource: !Ref SNSTopic
+
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: cloudCostBoardApi
+      Description: API Gateway for cloudCostBoard application
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # API Gateway Resource - /storeSecret
+  ApiGatewayResourceStoreSecret:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: storeSecret
+      RestApiId: !Ref ApiGatewayRestApi
+
+  # API Gateway Resource - /deleteSecret
+  ApiGatewayResourceDeleteSecret:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: deleteSecret
+      RestApiId: !Ref ApiGatewayRestApi
+
+  # API Gateway Resource - /getCostData
+  ApiGatewayResourceGetCostData:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: getCostData
+      RestApiId: !Ref ApiGatewayRestApi
+
+  # API Gateway Resource - /createTopic
+  ApiGatewayResourceCreateTopic:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: createTopic
+      RestApiId: !Ref ApiGatewayRestApi
+
+  # API Gateway Resource - /generateReport
+  ApiGatewayResourceGenerateReport:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: generateReport
+      RestApiId: !Ref ApiGatewayRestApi
+
+  # API Gateway Resource - /sendEmail
+  ApiGatewayResourceSendEmail:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: sendEmail
+      RestApiId: !Ref ApiGatewayRestApi
+
+  # API Gateway Method - /storeSecret - POST
+  ApiGatewayMethodStoreSecretPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref ApiGatewayResourceStoreSecret
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Credentials: arn:aws:iam::101138527444:role/LabRole
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+            - { LambdaArn: !GetAtt storeSecretLambda.Arn }
+        RequestTemplates:
+          application/json: ""
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ""
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,access-control-allow-credentials'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Credentials: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Method - /storeSecret - OPTIONS
+  ApiGatewayMethodStoreSecretOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayResourceStoreSecret
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Type: MOCK # Use MOCK integration for CORS preflight requests
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            # ResponseTemplates:
+            #   application/json: ""  # Provide an empty template
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty" # Reference the empty model
+
+  # API Gateway Method - /deleteSecret - POST
+  ApiGatewayMethodDeleteSecretPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref ApiGatewayResourceDeleteSecret
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Credentials: arn:aws:iam::101138527444:role/LabRole
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+            - { LambdaArn: !GetAtt deleteSecretLambda.Arn }
+        RequestTemplates:
+          application/json: ""
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ""
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Method - /deleteSecret - OPTIONS
+  ApiGatewayMethodDeleteSecretOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayResourceDeleteSecret
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Type: MOCK # Use MOCK integration for CORS preflight requests
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
+          ResponseModels:
+            application/json: "Empty" # Reference the empty model
+
+  # API Gateway Method - /getCostData - POST
+  ApiGatewayMethodGetCostDataPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref ApiGatewayResourceGetCostData
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Credentials: arn:aws:iam::101138527444:role/LabRole
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+            - { LambdaArn: !GetAtt getCostDataLambda.Arn }
+        RequestTemplates:
+          application/json: ""
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ""
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,access-control-allow-credentials'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Credentials: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Method - /getCostData - OPTIONS
+  ApiGatewayMethodGetCostDataOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayResourceGetCostData
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
+              method.response.header.Access-Control-Expose-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
+            method.response.header.Access-Control-Expose-Headers: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Method - /createTopic - POST
+  ApiGatewayMethodCreateTopicPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref ApiGatewayResourceCreateTopic
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Credentials: arn:aws:iam::101138527444:role/LabRole
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+            - { LambdaArn: !GetAtt createTopicLambda.Arn }
+        RequestTemplates:
+          application/json: ""
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ""
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Method - /createTopic - OPTIONS
+  ApiGatewayMethodCreateTopicOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayResourceCreateTopic
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Method - /generateReport - POST
+  ApiGatewayMethodGenerateReportPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref ApiGatewayResourceGenerateReport
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Credentials: arn:aws:iam::101138527444:role/LabRole
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+            - { LambdaArn: !GetAtt generateReportLambda.Arn }
+        RequestTemplates:
+          application/json: ""
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ""
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Method - /generateReport - OPTIONS
+  ApiGatewayMethodGenerateReportOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayResourceGenerateReport
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Method - /sendEmail - POST
+  ApiGatewayMethodSendEmailPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref ApiGatewayResourceSendEmail
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Credentials: arn:aws:iam::101138527444:role/LabRole
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+            - { LambdaArn: !GetAtt sendEmailLambda.Arn }
+        RequestTemplates:
+          application/json: ""
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ""
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Method - /sendEmail - OPTIONS
+  ApiGatewayMethodSendEmailOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayResourceSendEmail
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Deployment
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: cloudCostBoard
+    DependsOn:
+      - ApiGatewayMethodStoreSecretPost
+      - ApiGatewayMethodDeleteSecretPost
+      - ApiGatewayMethodGetCostDataPost
+      - ApiGatewayMethodCreateTopicPost
+      - ApiGatewayMethodGenerateReportPost
+      - ApiGatewayMethodSendEmailPost
+      - ApiGatewayMethodStoreSecretOptions
+      - ApiGatewayMethodDeleteSecretOptions
+      - ApiGatewayMethodGetCostDataOptions
+      - ApiGatewayMethodCreateTopicOptions
+      - ApiGatewayMethodGenerateReportOptions
+      - ApiGatewayMethodSendEmailOptions
+
+  # Lambda Permissions for API Gateway
+  LambdaPermissionForApiGatewayStoreSecret:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt storeSecretLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/POST/storeSecret
+
+  LambdaPermissionForApiGatewayDeleteSecret:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt deleteSecretLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/POST/deleteSecret
+
+  LambdaPermissionForApiGatewayGetCostData:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt getCostDataLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/POST/getCostData
+
+  LambdaPermissionForApiGatewayCreateTopic:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt createTopicLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/POST/createTopic
+
+  LambdaPermissionForApiGatewayGenerateReport:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt generateReportLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/POST/generateReport
+
+  LambdaPermissionForApiGatewaySendEmail:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt sendEmailLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/POST/sendEmailLambda
+
+  # Creating VPC
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: MyVPC
+
+  # Creating Subnet
+  MySubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.5.0/24
+      AvailabilityZone: us-east-1a
+      Tags:
+        - Key: Name
+          Value: MySubnet
+
+  # Creating IGW
+  MyInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MyInternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref MyInternetGateway
+
+  #Creating RT
+  MyRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: MyRouteTable
+
+  MyRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref MyRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyInternetGateway
+
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MySubnet
+      RouteTableId: !Ref MyRouteTable
+
+  # Security Groups
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: MySecurityGroup
+      GroupDescription: Allow SSH, HTTP, and HTTPS traffic
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: MySecurityGroup
+
+  #EC2 Instance
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.small
+      ImageId: ami-0ba9883b710b05ac6
+      KeyName: vockey
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          SubnetId: !Ref MySubnet
+          GroupSet:
+            - !Ref MySecurityGroup
+      Tags:
+        - Key: Name
+          Value: MyEC2Instance
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo yum update -y
+          sudo yum install -y docker
+          sudo service docker start
+          sudo usermod -a -G docker ec2-user
+          docker pull kp6657/cloudcostboard
+
+          OUTPUTS=$(aws cloudformation describe-stacks --stack-name ${AWS::StackName} --query "Stacks[0].Outputs" --output json)
+
+          API_GATEWAY_URL=https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com
+
+          docker run -d -p 8000:5173 -e VITE_SECRET_KEY=kp6657 -e VITE_API_GATEWAY_URL=$API_GATEWAY_URL --name=cloudcostboard kp6657/cloudcostboard
+
+Outputs:
+  storeSecretLambdaArn:
+    Value: !GetAtt storeSecretLambda.Arn
+    Export:
+      Name: storeSecretLambdaArn
+  deleteSecretLambdaArn:
+    Value: !GetAtt deleteSecretLambda.Arn
+    Export:
+      Name: deleteSecretLambdaArn
+  getCostDataLambdaArn:
+    Value: !GetAtt getCostDataLambda.Arn
+    Export:
+      Name: getCostDataLambdaArn
+  createTopicLambdaArn:
+    Value: !GetAtt createTopicLambda.Arn
+    Export:
+      Name: createTopicLambdaArn
+  generateReportLambdaArn:
+    Value: !GetAtt generateReportLambda.Arn
+    Export:
+      Name: generateReportLambdaArn
+  ApiUrl:
+    Description: "URL of the API Gateway"
+    Value: !Sub "https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiGatewayDeployment}"
+    Export:
+      Name: ApiGatewayUrl
+  BucketName:
+    Description: Name of the S3 bucket
+    Value: !Ref S3Bucket
+    Export:
+      Name: S3BucketName
+  BucketArn:
+    Description: ARN of the S3 bucket
+    Value: !GetAtt S3Bucket.Arn
+    Export:
+      Name: S3BucketArn
+  ApiGatewayDeployment:
+    Value: !Ref ApiGatewayDeployment
+    Export:
+      Name: ApiGatewayDeployment

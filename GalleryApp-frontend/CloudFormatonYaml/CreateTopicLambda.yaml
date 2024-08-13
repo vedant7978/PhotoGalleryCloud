@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  # Define the Lambda Layer
+  MyLambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: awsnodemodules
+      Description: "A layer containing Node.js modules"
+      Content:
+        S3Bucket: photogallery5409
+        S3Key: awsnodemodules.zip
+      CompatibleRuntimes:
+        - nodejs20.x
+
+  # Define the Lambda Function
+  createTopicNotifyLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: createTopicNotifyLambda
+      Handler: index.handler
+      Role: arn:aws:iam::980977648800:role/LabRole
+      Code:
+        S3Bucket: photogallery5409
+        S3Key: createtopicnotifylambda.zip	
+      Runtime: nodejs20.x
+      Timeout: 15
+      Layers:
+        - !Ref MyLambdaLayer
+
+  # API Gateway Method - /notifyuser - POST
+  ApiGatewayRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: photogallery
+      Description: API Gateway for cloudCostBoard application
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+  
+  ApiGatewayMethodNotify:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt ApiGatewayRestApi.RootResourceId
+      PathPart: notifyuser
+      RestApiId: !Ref ApiGatewayRestApi          
+
+  ApiGatewayMethodNotifyPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref ApiGatewayMethodNotify
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Credentials: arn:aws:iam::980977648800:role/LabRole
+        IntegrationHttpMethod: POST
+        Type: AWS
+        Uri:
+          Fn::Sub:
+            - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+            - { LambdaArn: !GetAtt createTopicNotifyLambda.Arn }
+        RequestTemplates:
+          application/json: |
+            {
+              "body": "$util.escapeJavaScript($input.json('$')).replaceAll("\\\\'", "'")"
+            }
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseTemplates:
+              application/json: ""
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,access-control-allow-credentials'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Credentials: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Method - /notifyuser - OPTIONS
+  ApiGatewayMethodNotifyOptions:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: OPTIONS
+      ResourceId: !Ref ApiGatewayMethodNotify
+      RestApiId: !Ref ApiGatewayRestApi
+      Integration:
+        Type: MOCK # Use MOCK integration for CORS preflight requests
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+          ResponseModels:
+            application/json: "Empty"
+
+  # API Gateway Deployment
+  ApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApi
+      StageName: Prod
+    DependsOn:
+      - ApiGatewayMethodNotifyPost
+      - ApiGatewayMethodNotifyOptions
+
+  # Lambda Permissions for API Gateway
+  LambdaPermissionForApiGatewayNotifyUser:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt createTopicNotifyLambda.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApi}/*/POST/notifyuser
+
+Outputs:
+  LambdaFunctionArn:
+    Description: "ARN of the newly created Lambda function"
+    Value: !GetAtt createTopicNotifyLambda.Arn
+  LambdaLayerArn:
+    Description: "ARN of the newly created Lambda layer"
+    Value: !Ref MyLambdaLayer

@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  # Create a Security Group for RDS
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow MySQL access"
+      VpcId: "vpc-0a54a8fe2b5e2be9a"
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: "0.0.0.0/0"
+
+  # Create a Secret for RDS credentials
+  RDSSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: RDSsecrets
+      Description: "RDS Instance credentials"
+      SecretString: !Sub |
+        {
+          "username": "vedant",
+          "password": "vedant7978",
+          "engine": "mysql",
+          "host": "${GalleryRDSInstance.Endpoint.Address}",
+          "port": "3306",
+          "dbname": "galleryDb"
+        }
+
+  # Create an RDS DB Instance
+  GalleryRDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: "20"
+      AvailabilityZone: "us-east-1a"
+      DBInstanceIdentifier: "photo-1"
+      DBName: "galleryDb"
+      DBInstanceClass: "db.t3.micro"
+      Engine: "mysql"
+      EngineVersion: "8.0.35"
+      MasterUsername: !Sub "{{resolve:secretsmanager:RDSSecret:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:RDSSecret:SecretString:password}}"
+      MultiAZ: false
+      Port: "3306"
+      PubliclyAccessible: true
+      StorageEncrypted: false
+      StorageType: "gp2"
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+
+Outputs:
+  RdsInstanceId:
+    Description: "Instance ID of the newly created RDS instance"
+    Value: !Ref GalleryRDSInstance
+  RdsSecurityGroupId:
+    Description: "Security Group ID of the newly created RDS security group"
+    Value: !Ref RDSSecurityGroup
+  RDSSecretArn:
+    Description: "ARN of the Secrets Manager secret"
+    Value: !Ref RDSSecret
